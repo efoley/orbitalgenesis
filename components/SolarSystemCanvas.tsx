@@ -192,11 +192,30 @@ const SolarSystemCanvas: React.FC<SolarSystemCanvasProps> = ({
 
     // Draw Asteroids
     system.asteroidBelts.forEach(belt => {
-        ctx.fillStyle = '#555';
-        belt.particles.forEach(p => {
-            const angle = p.angle + (p.speed * timeRef.current * 0.001);
-            const ax = Math.cos(angle) * p.radius;
-            const ay = Math.sin(angle) * p.radius;
+        ctx.fillStyle = '#888';
+        belt.particles.forEach((p, i) => {
+            // Calculate angular velocity based on radius to approximate Keplerian motion (v/r)
+            // p.speed is already proportional to 1/sqrt(r), so dividing by radius gives r^-1.5
+            const angularVel = (p.speed / p.radius) * 200; 
+            const currentAngle = p.angle + (angularVel * timeRef.current);
+
+            // Bouncing Effect
+            const bounceFreq = 1.5; 
+            const bounceAmp = 2 + (p.size * 1.5); 
+
+            // Radial bounce (in/out)
+            // Use index i to desynchronize
+            const rOffset = Math.sin(timeRef.current * bounceFreq + p.angle * 13.37 + i) * bounceAmp;
+            
+            // Angular bounce (tangential jitter)
+            const aOffset = Math.cos(timeRef.current * bounceFreq * 1.1 + p.radius * 0.1 + i) * (bounceAmp / p.radius);
+
+            const finalRadius = p.radius + rOffset;
+            const finalAngle = currentAngle + aOffset;
+
+            const ax = Math.cos(finalAngle) * finalRadius;
+            const ay = Math.sin(finalAngle) * finalRadius;
+            
             ctx.globalAlpha = 0.6;
             ctx.beginPath();
             // Adjust size based on zoom so they don't disappear
