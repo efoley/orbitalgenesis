@@ -18,6 +18,7 @@ export interface Entity {
   radius: number;
   color: string;
   orbit: Orbit;
+  name: string;
 }
 
 export interface Moon extends Entity {
@@ -27,7 +28,6 @@ export interface Moon extends Entity {
 export interface Planet extends Entity {
   type: PlanetType;
   moons: Moon[];
-  name: string;
   description: string;
 }
 

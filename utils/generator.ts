@@ -10,6 +10,11 @@ const generateName = () => {
   return `${prefixes[randomInt(0, prefixes.length - 1)]}-${randomInt(10, 999)} ${suffixes[randomInt(0, suffixes.length - 1)]}`;
 };
 
+const toRoman = (num: number) => {
+  const roms = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+  return roms[num - 1] || num.toString();
+};
+
 const generateColor = (type: string): string => {
   // Simple HSL generation instead of D3 to avoid dependency issues
   const hue = (min: number, max: number) => randomInt(min, max);
@@ -106,9 +111,10 @@ export const generateSolarSystem = (width: number, height: number): SolarSystem 
     // Kepler's 3rd law approximation for period: T^2 proportional to a^3
     const period = Math.pow(semiMajorAxis, 1.5) * 0.005; 
 
+    const planetName = generateName();
     const planet: Planet = {
       id: `planet-${i}`,
-      name: generateName(),
+      name: planetName,
       type,
       radius,
       color,
@@ -139,6 +145,7 @@ export const generateSolarSystem = (width: number, height: number): SolarSystem 
             const moonDist = radius + randomRange(5, 15) + (m * randomRange(4, 8));
             const moon: Moon = {
                 id: `moon-${i}-${m}`,
+                name: `${planetName} ${toRoman(m + 1)}`,
                 parentId: planet.id,
                 radius: randomRange(0.8, 1.8),
                 color: '#ccc',

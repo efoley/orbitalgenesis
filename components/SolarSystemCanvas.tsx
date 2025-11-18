@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { SolarSystem, Planet } from '../types';
+import { SolarSystem, Planet, Entity } from '../types';
 import { getPositionOnOrbit } from '../utils/physics';
 
 interface SolarSystemCanvasProps {
@@ -11,7 +11,7 @@ interface SolarSystemCanvasProps {
   setZoom: React.Dispatch<React.SetStateAction<number>>;
   setPan: React.Dispatch<React.SetStateAction<{ x: number, y: number }>>;
   showOrbits: boolean;
-  onPlanetHover: (planet: Planet | null, screenX: number, screenY: number) => void;
+  onHover: (entity: Entity | null, screenX: number, screenY: number) => void;
 }
 
 const SolarSystemCanvas: React.FC<SolarSystemCanvasProps> = ({ 
@@ -23,14 +23,14 @@ const SolarSystemCanvas: React.FC<SolarSystemCanvasProps> = ({
   setZoom,
   setPan,
   showOrbits,
-  onPlanetHover
+  onHover
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number | undefined>(undefined);
   const timeRef = useRef<number>(0);
   
-  // To track planet positions for hover detection
-  const planetPositionsRef = useRef<Map<string, {x: number, y: number, r: number, planet: Planet}>>(new Map());
+  // To track positions for hover detection (Planets AND Moons)
+  const entityPositionsRef = useRef<Map<string, {x: number, y: number, r: number, entity: Entity}>>(new Map());
 
   // Mouse tracking
   const mouseRef = useRef<{x: number, y: number}>({x: 0, y: 0});
@@ -143,8 +143,7 @@ const SolarSystemCanvas: React.FC<SolarSystemCanvasProps> = ({
     // Render Background Stars
     ctx.fillStyle = '#FFFFFF';
     for(let i=0; i<100; i++) {
-        // Parallax effect for stars (optional, currently simple static)
-        // To make them move slightly with pan, we can use modulus
+        // Parallax effect for stars
         const sx = (i * 1337 + pan.x * 0.05) % width;
         const sy = (i * 7331 + pan.y * 0.05) % height;
         
@@ -188,26 +187,19 @@ const SolarSystemCanvas: React.FC<SolarSystemCanvasProps> = ({
     ctx.fill();
 
     // Reset positions map for this frame
-    planetPositionsRef.current.clear();
+    entityPositionsRef.current.clear();
 
     // Draw Asteroids
     system.asteroidBelts.forEach(belt => {
         ctx.fillStyle = '#888';
         belt.particles.forEach((p, i) => {
-            // Calculate angular velocity based on radius to approximate Keplerian motion (v/r)
-            // p.speed is already proportional to 1/sqrt(r), so dividing by radius gives r^-1.5
             const angularVel = (p.speed / p.radius) * 200; 
             const currentAngle = p.angle + (angularVel * timeRef.current);
 
             // Bouncing Effect
             const bounceFreq = 1.5; 
             const bounceAmp = 2 + (p.size * 1.5); 
-
-            // Radial bounce (in/out)
-            // Use index i to desynchronize
             const rOffset = Math.sin(timeRef.current * bounceFreq + p.angle * 13.37 + i) * bounceAmp;
-            
-            // Angular bounce (tangential jitter)
             const aOffset = Math.cos(timeRef.current * bounceFreq * 1.1 + p.radius * 0.1 + i) * (bounceAmp / p.radius);
 
             const finalRadius = p.radius + rOffset;
@@ -218,7 +210,6 @@ const SolarSystemCanvas: React.FC<SolarSystemCanvasProps> = ({
             
             ctx.globalAlpha = 0.6;
             ctx.beginPath();
-            // Adjust size based on zoom so they don't disappear
             const displaySize = Math.max(p.size, 0.5 / zoom);
             ctx.arc(ax, ay, displaySize, 0, Math.PI * 2);
             ctx.fill();
@@ -261,6 +252,12 @@ const SolarSystemCanvas: React.FC<SolarSystemCanvasProps> = ({
       ctx.arc(pos.x, pos.y, planet.radius, 0, Math.PI * 2);
       ctx.fill();
 
+      // Store planet screen coordinates for hover
+      const screenX = (pos.x * zoom) + cx + pan.x;
+      const screenY = (pos.y * zoom) + cy + pan.y;
+      // Hit radius for hover: ensure minimum size so small planets are clickable
+      entityPositionsRef.current.set(planet.id, { x: screenX, y: screenY, r: Math.max(planet.radius * zoom, 5), entity: planet });
+
       // Draw Moons
       planet.moons.forEach(moon => {
           const mPosLocal = getPositionOnOrbit(moon.orbit, timeRef.current);
@@ -281,40 +278,44 @@ const SolarSystemCanvas: React.FC<SolarSystemCanvasProps> = ({
           const moonSize = Math.max(moon.radius, 0.5 / zoom);
           ctx.arc(mx, my, moonSize, 0, Math.PI * 2);
           ctx.fill();
-      });
 
-      // Store screen coordinates for hover
-      // Transform world space (pos.x, pos.y) to screen space
-      // Screen = (World * Zoom) + Center + Pan
-      const screenX = (pos.x * zoom) + cx + pan.x;
-      const screenY = (pos.y * zoom) + cy + pan.y;
-      planetPositionsRef.current.set(planet.id, { x: screenX, y: screenY, r: planet.radius * zoom, planet });
+          // Store moon screen coordinates for hover
+          const screenMX = (mx * zoom) + cx + pan.x;
+          const screenMY = (my * zoom) + cy + pan.y;
+          entityPositionsRef.current.set(moon.id, { x: screenMX, y: screenMY, r: Math.max(moonSize * zoom, 4), entity: moon });
+      });
     });
 
     ctx.restore();
 
     // Check Hover
-    if (!isDraggingRef.current) { // Only check hover if not dragging
-        let foundPlanet: Planet | null = null;
+    if (!isDraggingRef.current) { 
+        let foundEntity: Entity | null = null;
         let hX = 0;
         let hY = 0;
 
-        for (const [_, pData] of planetPositionsRef.current) {
-           const dx = mouseRef.current.x - pData.x;
-           const dy = mouseRef.current.y - pData.y;
-           const hitRadius = Math.max(pData.r, 15); // Generous hit area
+        // Check entities. If overlap, maybe prioritize moons (since they are on top/smaller)? 
+        // Iteration order of map is insertion order (planets then moons). 
+        // Let's iterate backwards or just find the last one (topmost) that matches.
+        // Or just iterate and overwrite.
+        
+        for (const [_, eData] of entityPositionsRef.current) {
+           const dx = mouseRef.current.x - eData.x;
+           const dy = mouseRef.current.y - eData.y;
+           // Fixed interaction radius of at least 15px for usability
+           const hitRadius = Math.max(eData.r, 15); 
            if (dx*dx + dy*dy < hitRadius*hitRadius) {
-               foundPlanet = pData.planet;
-               hX = pData.x;
-               hY = pData.y;
-               break; 
+               foundEntity = eData.entity;
+               hX = eData.x;
+               hY = eData.y;
+               // Don't break, so we find the "top" one if they overlap (last drawn/inserted)
            }
         }
-        onPlanetHover(foundPlanet, hX, hY);
+        onHover(foundEntity, hX, hY);
     }
 
     requestRef.current = requestAnimationFrame(animate);
-  }, [system, speedMultiplier, paused, zoom, pan, showOrbits, onPlanetHover]);
+  }, [system, speedMultiplier, paused, zoom, pan, showOrbits, onHover]);
 
   useEffect(() => {
     requestRef.current = requestAnimationFrame(animate);

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import SolarSystemCanvas from './components/SolarSystemCanvas';
 import { generateSolarSystem } from './utils/generator';
-import { Planet } from './types';
+import { Planet, Entity, Moon } from './types';
 import { RefreshCw, Play, Pause, ZoomIn, ZoomOut, Eye, EyeOff } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -20,7 +20,7 @@ const App: React.FC = () => {
   const [showOrbits, setShowOrbits] = useState(true);
 
   // Hover state
-  const [hoveredPlanet, setHoveredPlanet] = useState<Planet | null>(null);
+  const [hoveredEntity, setHoveredEntity] = useState<Entity | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
   const handleGenerate = () => {
@@ -28,11 +28,22 @@ const App: React.FC = () => {
     setPan({ x: 0, y: 0 }); // Reset view
   };
 
-  const handleHover = (planet: Planet | null, x: number, y: number) => {
-    setHoveredPlanet(planet);
-    if (planet) {
+  const handleHover = (entity: Entity | null, x: number, y: number) => {
+    setHoveredEntity(entity);
+    if (entity) {
       setTooltipPos({ x, y });
     }
+  };
+
+  // Type guard to check if entity is a Planet
+  const isPlanet = (entity: Entity): entity is Planet => {
+    return (entity as Planet).type !== undefined;
+  };
+
+  // Helper to get parent name if it's a moon
+  const getParentName = (moon: Moon) => {
+    const parent = system.planets.find(p => p.id === moon.parentId);
+    return parent ? parent.name : 'Unknown';
   };
 
   return (
@@ -48,7 +59,7 @@ const App: React.FC = () => {
         setZoom={setZoom}
         setPan={setPan}
         showOrbits={showOrbits}
-        onPlanetHover={handleHover}
+        onHover={handleHover}
       />
 
       {/* UI Overlay: Top Left - Title */}
@@ -122,38 +133,60 @@ const App: React.FC = () => {
       </div>
 
       {/* Tooltip */}
-      {hoveredPlanet && (
+      {hoveredEntity && (
         <div 
           className="absolute pointer-events-none z-50 transform -translate-x-1/2 -translate-y-full mb-4 transition-opacity duration-75"
           style={{ left: tooltipPos.x, top: tooltipPos.y - 15 }}
         >
           <div className="bg-gray-900/90 backdrop-blur border border-white/20 p-4 rounded-lg shadow-xl min-w-[200px]">
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-3 h-3 rounded-full shadow-lg" style={{ backgroundColor: hoveredPlanet.color }}></div>
-              <h3 className="font-bold text-white">{hoveredPlanet.name}</h3>
+              <div className="w-3 h-3 rounded-full shadow-lg" style={{ backgroundColor: hoveredEntity.color }}></div>
+              <h3 className="font-bold text-white">{hoveredEntity.name}</h3>
             </div>
-            <div className="space-y-1 text-xs text-gray-300 font-mono">
-              <div className="flex justify-between">
-                <span>Type:</span>
-                <span className="text-white">{hoveredPlanet.type}</span>
+            
+            {isPlanet(hoveredEntity) ? (
+              <div className="space-y-1 text-xs text-gray-300 font-mono">
+                <div className="flex justify-between">
+                  <span>Type:</span>
+                  <span className="text-white">{hoveredEntity.type}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Moons:</span>
+                  <span className="text-white">{hoveredEntity.moons.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Orbit Radius:</span>
+                  <span className="text-white">{(hoveredEntity.orbit.a / 100).toFixed(2)} AU</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Orbital Period:</span>
+                  <span className="text-white">{hoveredEntity.orbit.period.toFixed(1)} units</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Eccentricity:</span>
+                  <span className="text-white">{hoveredEntity.orbit.e.toFixed(3)}</span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span>Moons:</span>
-                <span className="text-white">{hoveredPlanet.moons.length}</span>
+            ) : (
+              <div className="space-y-1 text-xs text-gray-300 font-mono">
+                <div className="flex justify-between">
+                  <span>Type:</span>
+                  <span className="text-white">Moon</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Orbiting:</span>
+                  <span className="text-white">{getParentName(hoveredEntity as Moon)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Distance:</span>
+                  <span className="text-white">{(hoveredEntity.orbit.a).toFixed(1)} units</span>
+                </div>
+                 <div className="flex justify-between">
+                  <span>Orbital Period:</span>
+                  <span className="text-white">{hoveredEntity.orbit.period.toFixed(1)} units</span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span>Orbit Radius:</span>
-                <span className="text-white">{(hoveredPlanet.orbit.a / 100).toFixed(2)} AU</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Orbital Period:</span>
-                <span className="text-white">{hoveredPlanet.orbit.period.toFixed(1)} units</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Eccentricity:</span>
-                <span className="text-white">{hoveredPlanet.orbit.e.toFixed(3)}</span>
-              </div>
-            </div>
+            )}
           </div>
           {/* Arrow */}
           <div className="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-gray-900/90 absolute left-1/2 -translate-x-1/2 top-full"></div>
