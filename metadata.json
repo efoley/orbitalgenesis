@@ -1,0 +1,5 @@
+{
+  "name": "Orbital Genesis",
+  "description": "A procedural solar system generator visualizing Keplerian orbits with planets, moons, and asteroid belts using HTML5 Canvas and React.",
+  "requestFramePermissions": []
+}
