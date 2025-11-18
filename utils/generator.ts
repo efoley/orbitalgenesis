@@ -45,7 +45,7 @@ const generateColor = (type: string): string => {
 export const generateSolarSystem = (width: number, height: number): SolarSystem => {
   const system: SolarSystem = {
     star: {
-      radius: randomRange(20, 30), // Slightly larger star
+      radius: randomRange(5, 8), // Significantly smaller star (1/4 size)
       color: generateColor('STAR'),
       mass: 1,
     },
@@ -54,11 +54,12 @@ export const generateSolarSystem = (width: number, height: number): SolarSystem 
   };
 
   // Generate Planets
-  const numPlanets = randomInt(7, 12); // Increased planet count
+  const numPlanets = randomInt(7, 12); 
   
   // We track the outer boundary of the previous orbit to ensure no overlaps.
-  // Start slightly outside the star.
-  let previousAphelion = system.star.radius + 20;
+  // Start close to the star to allow inner planets at ~0.35 AU (35px).
+  // Star radius is ~6.5, +5 buffer = ~11.5 start.
+  let previousAphelion = system.star.radius + 5;
 
   for (let i = 0; i < numPlanets; i++) {
     // Logic to ensure orbits don't cross:
@@ -69,7 +70,8 @@ export const generateSolarSystem = (width: number, height: number): SolarSystem 
     
     // Define Gap
     // Inner planets are closer together, outer planets have vast distances
-    const minGap = isInnerSystem ? 30 : 80;
+    // Reduced minGap for inner system to 20 to allow closest orbit to be ~35px (0.35 AU)
+    const minGap = isInnerSystem ? 20 : 80;
     const maxGap = isInnerSystem ? 60 : 200;
     const gap = randomRange(minGap, maxGap);
 
