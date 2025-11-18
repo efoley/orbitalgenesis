@@ -160,7 +160,7 @@ const SolarSystemCanvas: React.FC<SolarSystemCanvasProps> = ({
 
     // Update Time
     if (!paused) {
-      timeRef.current += 0.5 * speedMultiplier;
+      timeRef.current += 0.05 * speedMultiplier;
     }
 
     // Apply Zoom/Pan Transform
